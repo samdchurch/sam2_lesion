@@ -25,7 +25,7 @@ class NiftiDataset(VisionDataset):
         max_num_frames,
         file_list = None,
         multiplier = 1,
-        multi_slice = True
+        multislice = True
         ):
         self.image_folder = image_folder
         self.gt_folder = gt_folder
@@ -33,7 +33,7 @@ class NiftiDataset(VisionDataset):
         self._transforms = transforms
         self.training = training
         self.max_num_frames = max_num_frames
-        self.multi_slice = multi_slice
+        self.multislice = multislice
         if file_list is not None:
             with open(file_list) as f:
                 self.image_files = f.readlines()
@@ -65,7 +65,7 @@ class NiftiDataset(VisionDataset):
 
         image_data = nib.load(image_file, mmap=True)
         label_data = nib.load(label_file, mmap=True)
-        if self.multi_slice:
+        if self.multislice:
             pad = 1
         else:
             pad = 0
@@ -100,7 +100,7 @@ class NiftiDataset(VisionDataset):
             obj = Object(object_id=1, frame_index=i, segment=label_slice)
 
             make_rgb = False
-            if self.multi_slice:
+            if self.multislice:
                 image_slice = torch.Tensor(image_slices[:,:,i:i+3]).squeeze()
             else:
                 image_slice = torch.Tensor(image_slices[:,:,i])

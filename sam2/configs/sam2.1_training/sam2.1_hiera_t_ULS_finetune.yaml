@@ -15,6 +15,10 @@ scratch:
   multislice: True
   cj: False
 
+lora: 
+  active: False
+  rank: 8
+
 dataset:
   # PATHS to Dataset
   img_folder_train: /app/UserData/public_datasets/ULS23/combined_dataset/train/images
@@ -23,8 +27,8 @@ dataset:
   img_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/images
   gt_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/labels
   info_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/info
-  file_list_train: /app/UserData/Sam/sam2/sam2/ABD_train.txt
-  file_list_val: /app/UserData/Sam/sam2/sam2/ABD_val.txt
+  file_list_train: /app/UserData/Sam/sam2/sam2/ABDsmall_train.txt
+  file_list_val: /app/UserData/Sam/sam2/sam2/ABDsmall_val.txt
   multiplier: 1
 
 # Video transforms
@@ -51,9 +55,9 @@ vos:
         #   contrast: 0.03
         #   saturation: 0.03
         #   hue: null
-        - _target_: training.dataset.transforms.GaussianBlur
-          mean: 0
-          std: 0.05
+        # - _target_: training.dataset.transforms.GaussianBlur
+        #   mean: 0
+        #   std: 0.s05
         # - _target_: training.dataset.transforms.RandomGrayscale
         #   p: 0.05
         #   consistent_transform: True
@@ -85,9 +89,10 @@ trainer:
   max_epochs: ${times:${scratch.num_epochs},${scratch.phases_per_epoch}}
   accelerator: cuda
   seed_value: 123
+  lora_config: ${lora}
 
   model:
-    _target_: training.model.sam2.SAM2Train
+    _target_: training.model.sam2_lesion.SAM2Train_Lesion
     image_encoder:
       _target_: sam2.modeling.backbones.image_encoder.ImageEncoder
       scalp: 1

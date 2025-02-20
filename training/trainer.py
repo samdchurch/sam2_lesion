@@ -53,6 +53,10 @@ from training.utils.train_utils import (
     setup_distributed_backend,
 )
 
+from peft import LoraConfig, get_peft_model
+
+from sam2.modeling.sam2_utils import dice_score
+import matplotlib.pyplot as plt
 
 CORE_LOSS_KEY = "core_loss"
 
@@ -164,6 +168,7 @@ class Trainer:
         optim_overrides: Optional[List[Dict[str, Any]]] = None,
         meters: Optional[Dict[str, Any]] = None,
         loss: Optional[Dict[str, Any]] = None,
+        lora_config = None
     ):
 
         self._setup_env_variables(env_variables)
@@ -225,6 +230,18 @@ class Trainer:
             barrier()
 
         self.load_checkpoint()
+        if lora_config.active:
+            lora_params = LoraConfig(
+                r=8,  # Rank of LoRA matrices
+                lora_alpha=32,  
+                lora_dropout=0.1,
+                target_modules=["qkv", "proj"],  # Apply to attention layers
+                task_type="FEATURE_EXTRACTION"
+            )
+
+            for idx, block in enumerate(self.model.image_encoder.trunk.blocks):
+                block = get_peft_model(block, lora_params)
+
         self._setup_ddp_distributed_training(distributed, accelerator)
         barrier()
 
@@ -458,6 +475,10 @@ class Trainer:
         targets = batch.masks
         batch_size = len(batch.img_batch)
 
+        pred_masks = [outputs[i]['pred_masks_high_res'] > 0 for i in range(len(outputs))]
+        pred_masks = torch.stack(pred_masks).squeeze(1)
+        dice = dice_score(pred_masks, targets)
+
         key = batch.dict_key  # key for dataset
         loss = self.loss[key](outputs, targets)
         loss_str = f"Losses/{phase}_{key}_loss"
@@ -483,7 +504,7 @@ class Trainer:
 
         self.steps[phase] += 1
 
-        ret_tuple = {loss_str: loss}, batch_size, step_losses
+        ret_tuple = {loss_str: loss}, batch_size, step_losses, dice
 
         if phase in self.meters and key in self.meters[phase]:
             meters_dict = self.meters[phase][key]
@@ -505,10 +526,10 @@ class Trainer:
                 if self.is_intermediate_val_epoch(self.epoch - 1):
                     logging.info("Running previous val epoch")
                     self.epoch -= 1
-                    self.run_val()
+                    self.run_val(0)
                     self.epoch += 1
-            self.run_train()
-            self.run_val()
+            train_dice = self.run_train()
+            self.run_val(train_dice)
         elif self.mode == "val":
             self.run_val()
         elif self.mode == "train_only":
@@ -529,7 +550,7 @@ class Trainer:
         while self.epoch < self.max_epochs:
             dataloader = self.train_dataset.get_loader(epoch=int(self.epoch))
             barrier()
-            outs = self.train_epoch(dataloader)
+            outs, dice = self.train_epoch(dataloader)
             self.logger.log_dict(outs, self.epoch)  # Logged only on rank 0
 
             # log train to text file.
@@ -549,7 +570,7 @@ class Trainer:
             # Run val, not running on last epoch since will run after the
             # loop anyway
             if self.is_intermediate_val_epoch(self.epoch):
-                self.run_val()
+                self.run_val(dice)
 
             if self.distributed_rank == 0:
                 self.best_meter_values.update(self._get_trainer_state("train"))
@@ -563,22 +584,60 @@ class Trainer:
         # epoch was incremented in the loop but the val step runs out of the loop
         self.epoch -= 1
 
-    def run_val(self):
+    def run_val(self, train_dice):
         if not self.val_dataset:
             return
 
         dataloader = self.val_dataset.get_loader(epoch=int(self.epoch))
-        outs = self.val_epoch(dataloader, phase=Phase.VAL)
+        outs, val_dice = self.val_epoch(dataloader, phase=Phase.VAL)
         del dataloader
         gc.collect()
         self.logger.log_dict(outs, self.epoch)  # Logged only on rank 0
 
         if self.distributed_rank == 0:
+            with open(os.path.join(self.logging_conf.log_dir, 'train_dice.txt'), 'a') as f:
+                f.write(str(train_dice) + '\n')
+            with open(os.path.join(self.logging_conf.log_dir, 'val_dice.txt'), 'a') as f:
+                f.write(str(val_dice) + '\n')
+
             with g_pathmgr.open(
                 os.path.join(self.logging_conf.log_dir, "val_stats.json"),
                 "a",
             ) as f:
                 f.write(json.dumps(outs) + "\n")
+
+            with open(os.path.join(self.logging_conf.log_dir, 'val_stats.json')) as f:
+                val_stats = [json.loads(line) for line in f]
+
+            with open(os.path.join(self.logging_conf.log_dir, 'train_stats.json')) as f:
+                train_stats = [json.loads(line) for line in f]
+
+            train_loss = [stat['Losses/train_all_loss'] for stat in train_stats]
+            val_loss = [stat['Losses/val_val_loss'] for stat in val_stats]
+
+            plt.plot(train_loss, label='train')
+            plt.plot(val_loss, label='val')
+            plt.legend()
+            plt.xlabel('epoch')
+            plt.ylabel('loss')
+            plt.savefig(os.path.join(self.logging_conf.log_dir, 'loss.png'))
+            plt.close()
+
+            with open(os.path.join(self.logging_conf.log_dir, 'train_dice.txt')) as f:
+                train_dice_vals = f.readlines()
+            with open(os.path.join(self.logging_conf.log_dir, 'val_dice.txt')) as f:
+                val_dice_vals = f.readlines()
+
+            train_dice_vals = [float(val.replace('\n', '')) for val in train_dice_vals]
+            val_dice_vals = [float(val.replace('\n', '')) for val in val_dice_vals]
+
+            plt.plot(train_dice_vals, label='train')
+            plt.plot(val_dice_vals, label='val')
+            plt.legend()
+            plt.xlabel('epoch')
+            plt.ylabel('dice')
+            plt.savefig(os.path.join(self.logging_conf.log_dir, 'dice.png'))
+            plt.close()
 
     def val_epoch(self, val_loader, phase):
         batch_time = AverageMeter("Batch Time", self.device, ":.2f")
@@ -613,7 +672,7 @@ class Trainer:
         )
 
         end = time.time()
-
+        dice_vals = []
         for data_iter, batch in enumerate(val_loader):
 
             # measure data loading time
@@ -632,11 +691,13 @@ class Trainer:
                     ),
                 ):
                     for phase, model in zip(curr_phases, curr_models):
-                        loss_dict, batch_size, extra_losses = self._step(
+                        loss_dict, batch_size, extra_losses, dice = self._step(
                             batch,
                             model,
                             phase,
                         )
+
+                        dice_vals.append(dice.cpu().numpy())
 
                         assert len(loss_dict) == 1
                         loss_key, loss = loss_dict.popitem()
@@ -691,7 +752,8 @@ class Trainer:
             out_dict.update(self._get_trainer_state(phase))
         self._reset_meters(curr_phases)
         logging.info(f"Meters: {out_dict}")
-        return out_dict
+        dice = np.mean(dice_vals)
+        return out_dict, dice
 
     def _get_trainer_state(self, phase):
         return {
@@ -737,6 +799,8 @@ class Trainer:
         self.model.train()
         end = time.time()
 
+        dice_vals = []
+
         for data_iter, batch in enumerate(train_loader):
             # measure data loading time
             data_time_meter.update(time.time() - end)
@@ -746,7 +810,8 @@ class Trainer:
             )  # move tensors in a tensorclass
 
             try:
-                self._run_step(batch, phase, loss_mts, extra_loss_mts)
+                dice = self._run_step(batch, phase, loss_mts, extra_loss_mts)
+                dice_vals.append(dice.cpu().numpy())
 
                 # compute gradient and do optim step
                 exact_epoch = self.epoch + float(data_iter) / iters_per_epoch
@@ -828,8 +893,9 @@ class Trainer:
             out_dict[k] = v.avg
         out_dict.update(self._get_trainer_state(phase))
         logging.info(f"Losses and meters: {out_dict}")
+        dice = np.mean(dice_vals)
         self._reset_meters([phase])
-        return out_dict
+        return out_dict, dice
 
     def _log_sync_data_times(self, phase, data_times):
         data_times = all_reduce_max(torch.tensor(data_times)).tolist()
@@ -862,7 +928,7 @@ class Trainer:
             enabled=self.optim_conf.amp.enabled,
             dtype=get_amp_type(self.optim_conf.amp.amp_dtype),
         ):
-            loss_dict, batch_size, extra_losses = self._step(
+            loss_dict, batch_size, extra_losses, dice = self._step(
                 batch,
                 self.model,
                 phase,
@@ -888,6 +954,8 @@ class Trainer:
                 )
             extra_loss_mts[extra_loss_key].update(extra_loss.item(), batch_size)
 
+        return dice
+    
     def _log_meters_and_save_best_ckpts(self, phases: List[str]):
         logging.info("Synchronizing meters")
         out_dict = {}

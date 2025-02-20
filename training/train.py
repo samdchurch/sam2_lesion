@@ -120,12 +120,40 @@ def add_pythonpath_to_sys_path():
     sys.path = os.environ["PYTHONPATH"].split(":") + sys.path
 
 
+def make_log_dir_name(cfg):
+    model_type = cfg.trainer.checkpoint.model_weight_initializer.state_dict.checkpoint_path
+    model_type = model_type.split('hiera_')[1].split('.')[0]
+    num_frames = cfg.scratch.num_frames
+    base_lr = cfg.scratch.base_lr
+    vision_lr = cfg.scratch.vision_lr
+    epochs = cfg.scratch.num_epochs
+    file_list = cfg.dataset.file_list_train
+    anno_type = cfg.trainer.model.fixed_annotation
+    if anno_type is None:
+        anno_type = 'all'
+    if file_list is None:
+        subset = 'all'
+    else:
+        subset = file_list.split('/')[-1].split('_')[0]
+    degrees = cfg.scratch.degrees
+    shear = cfg.scratch.shear
+    cj = cfg.scratch.cj
+    multislice = cfg.scratch.multislice
+    lora = cfg.lora.active
+    lora_rank = cfg.lora.rank
+    log_dir_name = f'size-{model_type}_subset-{subset}_ep-{epochs}_frames-{num_frames}_baselr-{base_lr}_visionlr-{vision_lr}_anno-{anno_type}_affine-{degrees}-{shear}_cj-{cj}_gb2_multi-{multislice}_lora-{lora}-{lora_rank}'
+
+    return log_dir_name
+
+
+
 def main(args) -> None:
     cfg = compose(config_name=args.config)
     if cfg.launcher.experiment_log_dir is None:
-        cfg.launcher.experiment_log_dir = os.path.join(
-            os.getcwd(), "sam2_logs", args.config
-        )
+            log_dir_name = make_log_dir_name(cfg)
+            cfg.launcher.experiment_log_dir = os.path.join(
+                os.getcwd(), "sam2_logs", log_dir_name
+            )
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))
     print("############################################################")

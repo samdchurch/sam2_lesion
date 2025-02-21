@@ -1,5 +1,6 @@
 from torchvision.transforms.v2 import GaussianBlur, GaussianNoise
 import matplotlib.pyplot as plt
+
 class RandomGaussianNoise:
     def __init__(self, mean=0, sigma=0.1, clip=True):
         self.noise = GaussianNoise(mean, sigma, clip)
@@ -11,7 +12,7 @@ class RandomGaussianNoise:
         return datapoint
 
 class RandomGaussianBlur:
-    def __init__(self, kernel_size=3, sigma=(0.0, 2.0)):
+    def __init__(self, kernel_size=3, sigma=(0.01, 2.0)):
         self.blur = GaussianBlur(kernel_size, sigma)
 
     def __call__(self, datapoint, **kwargs):

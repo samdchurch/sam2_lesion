@@ -14,6 +14,7 @@ scratch:
   shear: 20
   multislice: True
   cj: False
+  resource_dir: /app/UserData/Sam/sam2_resources
 
 lora: 
   active: False
@@ -27,8 +28,8 @@ dataset:
   img_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/images
   gt_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/labels
   info_folder_val: /app/UserData/public_datasets/ULS23/combined_dataset/val/info
-  file_list_train: /app/UserData/Sam/sam2/sam2/ABDsmall_train.txt
-  file_list_val: /app/UserData/Sam/sam2/sam2/ABDsmall_val.txt
+  file_list_train: /app/UserData/Sam/sam2/sam2/ABD_train.txt
+  file_list_val: /app/UserData/Sam/sam2/sam2/ABD_val.txt
   multiplier: 1
 
 # Video transforms
@@ -380,13 +381,13 @@ trainer:
 
       state_dict:
         _target_: training.utils.checkpoint_utils.load_checkpoint_and_apply_kernels
-        checkpoint_path: ./checkpoints/sam2.1_hiera_tiny.pt # PATH to SAM 2.1 checkpoint
+        checkpoint_path: {scratch.resource_dir}/checkpoints/sam2.1_hiera_tiny.pt # PATH to SAM 2.1 checkpoint
         ckpt_state_dict_keys: ['model']
 
 launcher:
   num_nodes: 1
   gpus_per_node: 8
-  experiment_log_dir: null # Path to log directory, defaults to ./sam2_logs/${config_name}
+  experiment_log_dir: {scratch.resource_dir}/logs
 
 # SLURM args if running on a cluster
 submitit:

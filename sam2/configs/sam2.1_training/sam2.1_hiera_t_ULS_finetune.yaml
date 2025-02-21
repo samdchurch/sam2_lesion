@@ -381,13 +381,13 @@ trainer:
 
       state_dict:
         _target_: training.utils.checkpoint_utils.load_checkpoint_and_apply_kernels
-        checkpoint_path: {scratch.resource_dir}/checkpoints/sam2.1_hiera_tiny.pt # PATH to SAM 2.1 checkpoint
+        checkpoint_path: ${scratch.resource_dir}/checkpoints/sam2.1_hiera_tiny.pt # PATH to SAM 2.1 checkpoint
         ckpt_state_dict_keys: ['model']
 
 launcher:
   num_nodes: 1
   gpus_per_node: 8
-  experiment_log_dir: {scratch.resource_dir}/logs
+  experiment_log_dir: ${scratch.resource_dir}/logs
 
 # SLURM args if running on a cluster
 submitit:

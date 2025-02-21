@@ -18,10 +18,10 @@ class RandomGaussianBlur:
     def __call__(self, datapoint, **kwargs):
         for i in range(len(datapoint.frames)):
             plt.subplot(1, 2, 1)
-            plt.show(datapoint.frames[i])
+            plt.show(datapoint.frames[i].data)
             datapoint.frames[i].data = self.blur(datapoint.frames[i].data)
             plt.subplot(1, 2, 2)
-            plt.show(datapoint.frames[i])
+            plt.show(datapoint.frames[i].data)
             plt.savefig('example.png')
             assert 1 == 2
 

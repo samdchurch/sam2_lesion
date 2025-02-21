@@ -150,9 +150,9 @@ def make_log_dir_name(cfg):
 def main(args) -> None:
     cfg = compose(config_name=args.config)
     if cfg.launcher.experiment_log_dir is None:
-            log_dir_name = make_log_dir_name(cfg)
-            cfg.launcher.experiment_log_dir = os.path.join(
-                os.getcwd(), "sam2_logs", log_dir_name
+        cfg.launcher.experiment_log_dir = os.getcwd()
+    log_dir_name = make_log_dir_name(cfg)
+    cfg.launcher.experiment_log_dir = os.path.join(cfg.launcher.experiment_log_dir, "sam2_logs", log_dir_name
             )
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))

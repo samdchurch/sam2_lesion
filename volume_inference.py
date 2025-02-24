@@ -4,12 +4,16 @@ import json
 import torch
 
 import nibabel as nib
+from hydra.core.global_hydra import GlobalHydra
 from hydra import initialize_config_module
 
 from sam2.modeling.sam2_lesion_utils import find_furthest_points_brute
 from sam2.build_sam import build_sam2_video_predictor
 
+
 DATASET_LOCATION = '/app/UserData/public_datasets/ULS23/combined_dataset'
+os.environ["HYDRA_FULL_ERROR"] = "1"
+
 
 def predict_volume(predictor, image_file, label_file, info_file, anno_type=None, visualization=False):
     with open(info_file) as f:
@@ -74,6 +78,7 @@ if __name__ == '__main__':
     model_config = f'sam2.1_hiera_{size}'
     subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABDsmall_val.txt'
     anno_type = 'line'
+    GlobalHydra.instance().clear()
     initialize_config_module("sam2_resources/config", version_base="1.2")
 
     run_predictor(ckpt_path=ckpt_path, model_config=model_config, subset_file=subset_file, anno_type=anno_type)

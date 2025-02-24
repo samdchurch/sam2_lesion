@@ -22,7 +22,7 @@ def predict_volume(predictor, image_file, label_file, info_file, anno_type=None,
     min_slice = image_info['image']['min']
     max_slice = image_info['image']['max']
     center_slice = int(max(image_info['label'], key=image_info['label'].get))
-    mask_3d = nib.load(label_file).get_fdata()
+    mask_3d = torch.tensor(nib.load(label_file).get_fdata())
     center_slice_mask = mask_3d[:,:,center_slice].squeeze().unsqueeze(0)
     if anno_type == 'line':
         points, labels = find_furthest_points_brute(center_slice_mask)

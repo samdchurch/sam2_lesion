@@ -40,7 +40,7 @@ class NiftiDataset(VisionDataset):
                 self.image_files = [file.replace('\n', '') for file in self.image_files]
         else:
             self.image_files = os.listdir(image_folder)
-
+        np.random.shuffle(self.image_files)
         self.image_files = self.image_files * multiplier
 
 

@@ -323,7 +323,6 @@ def get_next_point(gt_masks, pred_masks, method):
         raise ValueError(f"unknown sampling method {method}")
     
 def dice_score(pred: torch.Tensor, target: torch.Tensor, epsilon: float = 1e-6) -> torch.Tensor:
-
     pred = pred.float()
     target = target.float()
     

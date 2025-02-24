@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from PIL import Image
 from tqdm import tqdm
+import nibabel as nib
+import torch.nn.functional as F
 
 
 def get_sdpa_settings():
@@ -177,6 +179,8 @@ def load_video_frames(
     img_std=(0.229, 0.224, 0.225),
     async_loading_frames=False,
     compute_device=torch.device("cuda"),
+    center_frame=None,
+    end_frame=None
 ):
     """
     Load the video frames from video_path. The frames are resized to image_size as in
@@ -203,6 +207,18 @@ def load_video_frames(
             img_std=img_std,
             async_loading_frames=async_loading_frames,
             compute_device=compute_device,
+        )
+    elif is_str and '.nii' in video_path:
+        return load_frames_from_nifti_file(
+            image_path=video_path,
+            image_size=image_size,
+            offload_video_to_cpu=offload_video_to_cpu,
+            img_mean=img_mean,
+            img_std=img_std,
+            async_loading_frames=async_loading_frames,
+            compute_device=compute_device,
+            center_frame=center_frame,
+            end_frame = end_frame
         )
     else:
         raise NotImplementedError(
@@ -307,6 +323,50 @@ def load_video_frames_from_video_file(
     images -= img_mean
     images /= img_std
     return images, video_height, video_width
+
+
+def load_frames_from_nifti_file(
+    image_path,
+    image_size,
+    offload_video_to_cpu,
+    img_mean=(0.485, 0.456, 0.406),
+    img_std=(0.229, 0.224, 0.225),
+    async_loading_frames=False,
+    compute_device=torch.device("cuda"),
+    center_frame=0,
+    end_frame=-1
+):
+    img_mean = torch.tensor(img_mean, dtype=torch.float32)[:, None, None]
+    img_std = torch.tensor(img_std, dtype=torch.float32)[:, None, None]
+
+    image_data = nib.load(image_path).get_fdata()
+    
+    image_data = image_data - np.min(image_data)
+    image_data = image_data / np.max(image_data)
+
+    image_data = image_data.squeeze()
+    direction = 1
+    if end_frame < center_frame:
+        direction = -1
+    image_data = image_data[:,:,center_frame:end_frame:direction].copy()
+
+    orig_height, orig_width, num_slices = image_data.shape
+    image_data = torch.tensor(image_data)
+    image_data = image_data.unsqueeze(0).unsqueeze(0)
+    image_data = F.interpolate(image_data, size=(image_size, image_size, num_slices), mode='trilinear', align_corners=False)
+    image_data = image_data.squeeze(0)
+    image_data = image_data.repeat(3, 1, 1, 1)
+    image_data = image_data.permute(3, 0, 1, 2)
+
+    if not offload_video_to_cpu:
+        images = image_data.to(compute_device)
+        img_mean = img_mean.to(compute_device)
+        img_std = img_std.to(compute_device)
+    
+    # normalize by mean and std
+    images -= img_mean
+    images /= img_std
+    return images, orig_height, orig_width
 
 
 def fill_holes_in_mask_scores(mask, max_area):

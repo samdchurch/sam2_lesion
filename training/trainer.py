@@ -55,7 +55,7 @@ from training.utils.train_utils import (
 
 from peft import LoraConfig, get_peft_model
 
-from sam2.modeling.sam2_utils import dice_score
+from sam2.modeling.sam2_lesion_utils import dice_score
 import matplotlib.pyplot as plt
 
 CORE_LOSS_KEY = "core_loss"

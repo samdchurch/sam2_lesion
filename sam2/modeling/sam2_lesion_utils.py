@@ -21,7 +21,11 @@ def find_furthest_points_brute(
     dist_matrix = cdist(indices_np, indices_np, metric='euclidean')  # Compute pairwise distances
 
     max_idx = np.unravel_index(np.argmax(dist_matrix), dist_matrix.shape)  # Get max dist indices
-    points = torch.stack([indices[max_idx[0]], indices[max_idx[1]]]).unsqueeze(0)
+    #points = torch.stack([indices[max_idx[0]], indices[max_idx[1]]]).unsqueeze(0)
+    start_point = torch.flip(indices[max_idx[1]], dims=[0])
+    end_point = torch.flip(indices[max_idx[0]], dims=[0])
+
+    points = torch.stack([start_point, end_point]).unsqueeze(0)
 
     labels = torch.tensor([line_label, line_label], dtype=torch.int, device=device)
     labels = labels.unsqueeze(0)

@@ -322,13 +322,4 @@ def get_next_point(gt_masks, pred_masks, method):
     else:
         raise ValueError(f"unknown sampling method {method}")
     
-def dice_score(pred: torch.Tensor, target: torch.Tensor, epsilon: float = 1e-6) -> torch.Tensor:
-    pred = pred.float()
-    target = target.float()
-    
-    intersection = (pred * target).sum(dim=(1, 2, 3))
-    union = pred.sum(dim=(1, 2, 3)) + target.sum(dim=(1, 2, 3))
-    
-    dice = (2. * intersection + epsilon) / (union + epsilon)
-    
-    return dice.mean()  # Returns the mean Dice score over the batch
+

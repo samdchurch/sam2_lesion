@@ -13,7 +13,7 @@ def find_furthest_points_brute(
     indices = torch.nonzero(mask, as_tuple=False)  # Get coordinates of foreground pixels
     if len(indices) < 2:
         points = torch.tensor(np.array([[[0, 0], [0, 0]]]), dtype=torch.float32, device=device)
-        labels = torch.tensor([line_label, line_label], dtype=torch.int, device=device)
+        labels = torch.tensor([-1, -1], dtype=torch.int, device=device)
         labels = labels.unsqueeze(0)
         return points, labels
     
@@ -26,3 +26,14 @@ def find_furthest_points_brute(
     labels = torch.tensor([line_label, line_label], dtype=torch.int, device=device)
     labels = labels.unsqueeze(0)
     return points, labels
+
+def dice_score(pred: torch.Tensor, target: torch.Tensor, epsilon: float = 1e-6) -> torch.Tensor:
+    pred = pred.float()
+    target = target.float()
+    
+    intersection = (pred * target).sum(dim=(1, 2, 3))
+    union = pred.sum(dim=(1, 2, 3)) + target.sum(dim=(1, 2, 3))
+    
+    dice = (2. * intersection + epsilon) / (union + epsilon)
+    
+    return dice.mean()  # Returns the mean Dice score over the batch

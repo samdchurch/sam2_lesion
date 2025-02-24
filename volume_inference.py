@@ -23,10 +23,9 @@ def predict_volume(predictor, image_file, label_file, info_file, anno_type=None,
     max_slice = image_info['image']['max']
     center_slice = int(max(image_info['label'], key=image_info['label'].get))
     mask_3d = nib.load(label_file).get_fdata()
-    center_slice_mask = mask_3d[:,:,center_slice]
-    print(center_slice_mask.shape)
+    center_slice_mask = mask_3d[:,:,center_slice].squeeze().unsqueeze(0)
     if anno_type == 'line':
-        points, labels = find_furthest_points_brute(mask_3d[:,:,center_slice])
+        points, labels = find_furthest_points_brute(center_slice_mask)
 
     inference_state = predictor.init_state(video_path=image_file, center_frame=center_slice, end_frame=max_slice)
 

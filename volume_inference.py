@@ -70,7 +70,7 @@ def run_predictor(ckpt_path, model_config, subset_file=None, anno_type=None, vis
         image_file = os.path.join(image_path, file)
         label_file = os.path.join(label_path, file)
         info_file = os.path.join(info_path, file.replace('.nii.gz', '.json'))
-        predict_volume(predictor=predictor, image_file=image_file, label_file=label_file, info_file=info_file, visualization=visualization)
+        predict_volume(predictor=predictor, image_file=image_file, label_file=label_file, info_file=info_file, anno_type=anno_type, visualization=visualization)
 
 if __name__ == '__main__':
     ckpt_path = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-ABDsmall_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-True_lora-False-8/checkpoints/checkpoint.pt'

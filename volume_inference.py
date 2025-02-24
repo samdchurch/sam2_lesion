@@ -70,7 +70,7 @@ def run_predictor(ckpt_path, model_config, subset_file=None, anno_type=None, vis
 if __name__ == '__main__':
     ckpt_path = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-ABDsmall_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-True_lora-False-8/checkpoints/checkpoint.pt'
     size = 't'
-    model_config = f'sam2.1_hiera_{size}.yaml'
+    model_config = f'sam2.1_hiera_{size}'
     subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABDsmall_val.txt'
     anno_type = 'line'
 

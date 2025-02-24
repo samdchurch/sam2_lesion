@@ -48,7 +48,7 @@ class NiftiDataset(VisionDataset):
         file = self.image_files[idx]
         info_file = file.replace('.nii.gz', '.json')
         info_file = os.path.join(self.info_folder, info_file)
-
+        print(info_file, flush=True)
         with open(info_file) as f:
             file_info = json.load(f)
 

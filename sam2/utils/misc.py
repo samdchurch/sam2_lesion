@@ -180,7 +180,8 @@ def load_video_frames(
     async_loading_frames=False,
     compute_device=torch.device("cuda"),
     center_frame=None,
-    end_frame=None
+    end_frame=None,
+    multislice=False
 ):
     """
     Load the video frames from video_path. The frames are resized to image_size as in
@@ -218,7 +219,8 @@ def load_video_frames(
             async_loading_frames=async_loading_frames,
             compute_device=compute_device,
             center_frame=center_frame,
-            end_frame = end_frame
+            end_frame = end_frame,
+            multislice=multislice
         )
     else:
         raise NotImplementedError(
@@ -334,7 +336,8 @@ def load_frames_from_nifti_file(
     async_loading_frames=False,
     compute_device=torch.device("cuda"),
     center_frame=0,
-    end_frame=-1
+    end_frame=-1,
+    multislice=False
 ):
     img_mean = torch.tensor(img_mean, dtype=torch.float32)[:, None, None]
     img_std = torch.tensor(img_std, dtype=torch.float32)[:, None, None]
@@ -357,6 +360,14 @@ def load_frames_from_nifti_file(
     image_data = image_data.squeeze(0)
     image_data = image_data.repeat(3, 1, 1, 1)
     image_data = image_data.permute(3, 0, 1, 2)
+
+    if multislice:
+        for i in range(image_data.shape[0]):
+            if i + 1 != image_data.shape[0]:
+                image_data[i,2,:,:] = image_data[i+1,1,:,:]
+            if i - 1 >= 0:
+                image_data[i,0,:,:] = image_data[i-1,1,:,:]
+
 
     if not offload_video_to_cpu:
         images = image_data.to(compute_device)

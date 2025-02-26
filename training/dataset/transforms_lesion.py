@@ -1,13 +1,28 @@
 from torchvision.transforms.v2 import GaussianBlur, GaussianNoise
 import matplotlib.pyplot as plt
-
+import numpy as np
+from PIL import Image
 class RandomGaussianNoise:
-    def __init__(self, mean=0, sigma=0.1, clip=True):
-        self.noise = GaussianNoise(mean, sigma, clip)
+    def __init__(self, mean=0, sigma=5, clip=True):
+        self.mean = mean
+        self.sigma = sigma
+        self.clip = clip
 
     def __call__(self, datapoint, **kwargs):
+        sigma = np.random.uniform(self.sigma)
         for i in range(len(datapoint.frames)):
-            datapoint.frames[i].data = self.noise(datapoint.frames[i].data)
+            np_image = np.array(datapoint.frames[i].data)
+
+            noise = np.random.normal(self.mean, sigma, np_image.shape)
+
+
+            np_image = np_image + noise
+
+            if self.clip:
+                np_image = np.clip(np_image, a_min=0, a_max=255)
+
+            datapoint.frames[i].data = Image.fromarray(np.array(np_image, dtype=np.uint8))
+
 
         return datapoint
 
@@ -16,13 +31,8 @@ class RandomGaussianBlur:
         self.blur = GaussianBlur(kernel_size, sigma)
 
     def __call__(self, datapoint, **kwargs):
+        import numpy as np
         for i in range(len(datapoint.frames)):
-            plt.subplot(1, 2, 1)
-            plt.show(datapoint.frames[i].data)
             datapoint.frames[i].data = self.blur(datapoint.frames[i].data)
-            plt.subplot(1, 2, 2)
-            plt.show(datapoint.frames[i].data)
-            plt.savefig('example.png')
-            assert 1 == 2
 
         return datapoint

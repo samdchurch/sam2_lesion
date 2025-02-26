@@ -141,7 +141,7 @@ def make_log_dir_name(cfg):
     multislice = cfg.scratch.multislice
     lora = cfg.lora.active
     lora_rank = cfg.lora.rank
-    log_dir_name = f'size-{model_type}_subset-{subset}_ep-{epochs}_frames-{num_frames}_baselr-{base_lr}_visionlr-{vision_lr}_anno-{anno_type}_affine-{degrees}-{shear}_cj-{cj}_gb2_multi-{multislice}_lora-{lora}-{lora_rank}'
+    log_dir_name = f'size-{model_type}_subset-{subset}_ep-{epochs}_frames-{num_frames}_baselr-{base_lr}_visionlr-{vision_lr}_anno-{anno_type}_affine-{degrees}-{shear}_cj-{cj}_gb2_multi-{multislice}_lora-{lora}-{lora_rank}_test'
 
     return log_dir_name
 

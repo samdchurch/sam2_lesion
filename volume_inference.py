@@ -28,7 +28,8 @@ def get_mask_range(mask):
     indices = np.where(nonzero)[0]
     return indices[0] ,indices[-1]
 
-def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points, anno_type):
+def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points, anno_type, dice_3d):
+    image_name = image_file.split('/')[-1].split('.')[0]
     image_data = nib.load(image_file).get_fdata()
 
     gt_start, gt_end = get_mask_range(mask_gt_3d)
@@ -38,6 +39,9 @@ def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points
     end = max(gt_end, pred_end)
 
     NUM_TILES = 3
+
+    save_dir = f'temp_viz/{image_name}'
+    os.makedirs(save_dir, exist_ok=True)
 
     if anno_type == 'line':
         anno_x_points = [points[0][0][1], points[0][1][1]]
@@ -79,9 +83,11 @@ def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points
             plt.axis('off')
             plt.legend()
 
+        plt.suptitle(f'Dice 3D:{dice_3d:02f}')
         
         plt.tight_layout()
-        plt.savefig(f'temp_viz/{name}.png', dpi=300)
+
+        plt.savefig(f'{save_dir}/{name}.png', dpi=300)
         plt.close()
 
 
@@ -156,18 +162,46 @@ def predict_volume(predictor, image_file, label_file, info_file, multislice=Fals
             multislice=multislice,
             mask_pred_3d=mask_pred_3d)
 
-    if visualization:
+
+        
+        
+    pred_forward = mask_pred_3d[:,:,center_slice:]
+    gt_forward = mask_gt_3d[:,:,center_slice:]
+    loc_pred = np.where(pred_forward)[2]
+    loc_gt = np.where(gt_forward)[2]
+
+    forward_pred_num_slices = np.max(loc_pred) - np.min(loc_pred) + 1
+    forward_gt_num_slices = np.max(loc_gt) - np.min(loc_gt) + 1
+
+
+    pred_backward = mask_pred_3d[:,:,:center_slice+1]
+    gt_backward = mask_gt_3d[:,:,:center_slice+1]
+
+    loc_pred = np.where(pred_backward)[2]
+    loc_gt = np.where(gt_backward)[2]
+
+    backward_pred_num_slices = np.max(loc_pred) - np.min(loc_pred) + 1
+    backward_gt_num_slices = np.max(loc_gt) - np.min(loc_gt) + 1
+
+    num_gt_slices = [forward_gt_num_slices, backward_gt_num_slices]
+    num_diff = [forward_pred_num_slices - forward_gt_num_slices, backward_pred_num_slices - backward_gt_num_slices]
+
+    dice_forward = dice_score(pred=pred_forward.unsqueeze(0), target=gt_forward.unsqueeze(0))
+    dice_backward = dice_score(pred=pred_backward.unsqueeze(0), target=gt_backward.unsqueeze(0))
+    
+    dice_3d = dice_score(pred=mask_pred_3d.unsqueeze(0), target=mask_gt_3d.unsqueeze(0))
+    dice_2d = dice_score(pred=mask_pred_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0), target=mask_gt_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0))
+
+    if visualization and dice_3d < 0.6:
         visualize_results(image_file=image_file, 
                           mask_gt_3d=mask_gt_3d, 
                           mask_pred_3d=mask_pred_3d, 
                           center_slice=center_slice, 
                           points=points, 
-                          anno_type=anno_type)
-    
-    dice_3d = dice_score(pred=mask_pred_3d.unsqueeze(0), target=mask_gt_3d.unsqueeze(0))
-    dice_2d = dice_score(pred=mask_pred_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0), target=mask_gt_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0))
+                          anno_type=anno_type,
+                          dice_3d=dice_3d)
 
-    return dice_3d, dice_2d
+    return dice_3d, dice_2d, num_gt_slices, num_diff
 
     
 
@@ -195,13 +229,13 @@ def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, a
         files = os.listdir(image_path)
     dice_3d_vals = []
     dice_2d_vals = []
-
-
+    all_gt_num = []
+    all_diff = []
     for idx, file in enumerate(files):
         image_file = os.path.join(image_path, file)
         label_file = os.path.join(label_path, file)
         info_file = os.path.join(info_path, file.replace('.nii.gz', '.json'))
-        dice_3d, dice_2d = predict_volume(predictor=predictor, 
+        dice_3d, dice_2d, num_gt_slices, num_diff = predict_volume(predictor=predictor, 
                        image_file=image_file, 
                        label_file=label_file, 
                        info_file=info_file,
@@ -212,19 +246,35 @@ def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, a
         dice_3d_vals.append(dice_3d)
         dice_2d_vals.append(dice_2d)
 
+        for num in num_gt_slices:
+            all_gt_num.append(num)
+        for num in num_diff:
+            all_diff.append(num)
+
     print('DICE 3D:', np.mean(dice_3d_vals))
     print(np.std(dice_3d_vals))
     print('DICE 2D:', np.mean(dice_2d_vals))
     print(np.std(dice_2d_vals))
 
+    plt.scatter(all_gt_num, all_diff)
+    plt.savefig('example.png')
+    plt.close()
+
+    plt.boxplot(dice_3d_vals)
+    plt.savefig('dice_3d.png')
+    plt.close()
+    plt.boxplot(dice_2d_vals)
+    plt.savefig('dice_2d.png')
+    plt.close()
+
 if __name__ == '__main__':
-    ckpt_path = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-ABDsmall_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-True_lora-False-8_flip/checkpoints/checkpoint.pt'
+    ckpt_path = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-ABD_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8/checkpoints/checkpoint.pt'
     size = 't'
     model_config = f'sam2.1_hiera_{size}'
-    subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABDsmall_val.txt'
+    subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABD_val.txt'
     anno_type = 'line'
-    multislice = True
+    multislice = False
     GlobalHydra.instance().clear()
     initialize_config_module("sam2_resources/config", version_base="1.2")
 
-    run_predictor(ckpt_path=ckpt_path, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=False)
+    run_predictor(ckpt_path=ckpt_path, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=True)

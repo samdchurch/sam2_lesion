@@ -86,6 +86,7 @@ def resize(datapoint, index, size, max_size=None, square=False, v2=False):
     else:
         datapoint.frames[index].data = F.resize(datapoint.frames[index].data, size)
 
+
     new_size = (
         datapoint.frames[index].data.size()[-2:][::-1]
         if v2
@@ -408,6 +409,8 @@ class RandomAffine:
                 interpolation=self.image_interpolation,
                 fill=self.fill_img,
             )
+
+
         return datapoint
 
 

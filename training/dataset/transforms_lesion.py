@@ -1,9 +1,9 @@
 from torchvision.transforms.v2 import GaussianBlur, GaussianNoise
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
+import torch
 class RandomGaussianNoise:
-    def __init__(self, mean=0, sigma=5, clip=True):
+    def __init__(self, mean=0, sigma=0.02, clip=True):
         self.mean = mean
         self.sigma = sigma
         self.clip = clip
@@ -19,9 +19,9 @@ class RandomGaussianNoise:
             np_image = np_image + noise
 
             if self.clip:
-                np_image = np.clip(np_image, a_min=0, a_max=255)
+                np_image = np.clip(np_image, a_min=0, a_max=1)
 
-            datapoint.frames[i].data = Image.fromarray(np.array(np_image, dtype=np.uint8))
+            datapoint.frames[i].data = torch.tensor(np.array(np_image))
 
 
         return datapoint

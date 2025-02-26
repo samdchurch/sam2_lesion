@@ -48,7 +48,6 @@ class NiftiDataset(VisionDataset):
         file = self.image_files[idx]
         info_file = file.replace('.nii.gz', '.json')
         info_file = os.path.join(self.info_folder, info_file)
-        print(info_file, flush=True)
         with open(info_file) as f:
             file_info = json.load(f)
 
@@ -93,7 +92,8 @@ class NiftiDataset(VisionDataset):
         image_slices = image_slices / np.max(image_slices)
 
         frames = []
-        to_pil = ToPILImage()
+        #to_pil = ToPILImage()
+        
         for i in range(label_slices.shape[2]):
             # shape (256, 256)
             label_slice = torch.Tensor(label_slices[:,:,i]).squeeze()
@@ -107,9 +107,10 @@ class NiftiDataset(VisionDataset):
                 image_slice = image_slice.repeat(1, 1, 3)
 
             image_slice = image_slice.permute(2, 0, 1)
-            image_slice = to_pil(image_slice)
+            #image_slice = to_pil(image_slice)
             
             # shape (3, 256, 256)
+            image_slice = torch.tensor(image_slice, dtype=torch.float32)
             image_frame = Frame(data=image_slice, objects=[obj])
             frames.append(image_frame)
 
@@ -118,6 +119,7 @@ class NiftiDataset(VisionDataset):
         datapoint = VideoDatapoint(frames=frames, video_id=idx, size=(h, w))
         for transform in self._transforms:
             datapoint = transform(datapoint)#, epoch=self.curr_epoch)
+
 
         return datapoint
 

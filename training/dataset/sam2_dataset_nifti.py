@@ -110,7 +110,6 @@ class NiftiDataset(VisionDataset):
             #image_slice = to_pil(image_slice)
             
             # shape (3, 256, 256)
-            image_slice = torch.tensor(image_slice, dtype=torch.float32)
             image_frame = Frame(data=image_slice, objects=[obj])
             frames.append(image_frame)
 

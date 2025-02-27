@@ -62,8 +62,8 @@ class NiftiDataset(VisionDataset):
         image_file = os.path.join(self.image_folder, file)
         label_file = os.path.join(self.gt_folder, file)
 
-        image_data = nib.load(image_file, mmap=True)
-        label_data = nib.load(label_file, mmap=True)
+        image_data = nib.load(image_file)
+        label_data = nib.load(label_file)
         if self.multislice:
             pad = 1
         else:
@@ -85,25 +85,23 @@ class NiftiDataset(VisionDataset):
         image_slices = image_data.dataobj[:,:,center_slice_image:end_slice_image:direction]
         label_slices = label_data.dataobj[:,:,center_slice:end_slice:direction]
 
-        image_slices = np.array(image_slices)
-        label_slices = np.array(label_slices)
+        image_slices = torch.tensor(image_slices.copy(), device=torch.device("cuda"))
+        label_slices = torch.tensor(label_slices.copy(), device=torch.device("cuda"))
 
-        image_slices = image_slices - np.min(image_slices)
-        image_slices = image_slices / np.max(image_slices)
-
+        image_slices = image_slices - torch.min(image_slices)
+        image_slices = image_slices / torch.max(image_slices)
         frames = []
         #to_pil = ToPILImage()
         
         for i in range(label_slices.shape[2]):
             # shape (256, 256)
-            label_slice = torch.Tensor(label_slices[:,:,i]).squeeze()
+            label_slice = label_slices[:,:,i].squeeze()
             obj = Object(object_id=1, frame_index=i, segment=label_slice)
 
-            make_rgb = False
             if self.multislice:
-                image_slice = torch.Tensor(image_slices[:,:,i:i+3]).squeeze()
+                image_slice = image_slices[:,:,i:i+3].squeeze()
             else:
-                image_slice = torch.Tensor(image_slices[:,:,i])
+                image_slice = image_slices[:,:,i]
                 image_slice = image_slice.repeat(1, 1, 3)
 
             image_slice = image_slice.permute(2, 0, 1)
@@ -160,6 +158,7 @@ class TorchTrainNiftiDataset:
                             pin_memory=self.pin_memory,
                             batch_sampler=batch_sampler,
                             collate_fn=self.collate_fn,
+                            persistent_workers=True,
                             worker_init_fn=self.worker_init_fn)
 
     def get_loader(self, epoch) -> Iterable:

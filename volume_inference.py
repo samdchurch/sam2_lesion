@@ -28,6 +28,78 @@ def get_mask_range(mask):
     indices = np.where(nonzero)[0]
     return indices[0] ,indices[-1]
 
+def all_views_viz(image_data, mask_gt_3d, mask_pred_3d, save_dir, dice_3d, image_name):
+    save_dir = os.path.join(save_dir, 'all_views')
+    os.makedirs(save_dir, exist_ok=True)
+
+    mask_gt_3d = np.array(mask_gt_3d)
+    sag_dim = np.argmax(np.sum(mask_gt_3d, axis=(1, 2)))
+    cor_dim = np.argmax(np.sum(mask_gt_3d, axis=(0, 2)))
+    ax_dim = np.argmax(np.sum(mask_gt_3d, axis=(0, 1)))
+    image_data = np.clip(image_data, -100, 400)
+    plt.subplot(1, 3, 1)
+    ax_slice = np.rot90(image_data[:,:,ax_dim])
+    mask_slice_gt = np.rot90(mask_gt_3d[:, :, ax_dim])
+    mask_slice_pred = np.rot90(mask_pred_3d[:, :, ax_dim])
+    gt_contour = measure.find_contours(mask_slice_gt, level=0.5)
+    pred_contour = measure.find_contours(mask_slice_pred, level=0.5)
+    if len(gt_contour) > 0:
+        gt_contour = gt_contour[0]
+        plt.plot(gt_contour[:,1], gt_contour[:,0], c='green', label='GT', alpha=0.5)
+
+    if len(pred_contour) > 0:
+        pred_contour = pred_contour[0]
+        plt.plot(pred_contour[:,1], pred_contour[:,0], c='orange', label='PRED', alpha=0.5)
+    plt.imshow(ax_slice, cmap='gray')
+    plt.axis('off')
+    
+
+    plt.subplot(1, 3, 2)
+    cor_slice = np.rot90(image_data[:,cor_dim,:])
+    mask_slice_gt = np.rot90(mask_gt_3d[:, cor_dim, :])
+    mask_slice_pred = np.rot90(mask_pred_3d[:, cor_dim, :])
+    gt_contour = measure.find_contours(mask_slice_gt, level=0.5)
+    pred_contour = measure.find_contours(mask_slice_pred, level=0.5)
+    plt.imshow(cor_slice, cmap='gray')
+    plt.axis('off')
+    plt.gca().set_aspect(2)
+
+
+    if len(gt_contour) > 0:
+        gt_contour = gt_contour[0]
+        plt.plot(gt_contour[:,1], gt_contour[:,0], c='green', label='GT', alpha=0.5)
+
+    if len(pred_contour) > 0:
+        pred_contour = pred_contour[0]
+        plt.plot(pred_contour[:,1], pred_contour[:,0], c='orange', label='PRED', alpha=0.5)
+
+    plt.subplot(1, 3, 3)
+    sag_slice = np.rot90(image_data[sag_dim, :, :])
+    mask_slice_gt = np.rot90(mask_gt_3d[sag_dim, :, :])
+    mask_slice_pred = np.rot90(mask_pred_3d[sag_dim, :, :])
+    gt_contour = measure.find_contours(mask_slice_gt, level=0.5)
+    pred_contour = measure.find_contours(mask_slice_pred, level=0.5)
+    plt.imshow(sag_slice, cmap='gray')
+    plt.gca().set_aspect(2)
+
+    plt.axis('off')
+
+    if len(gt_contour) > 0:
+        gt_contour = gt_contour[0]
+        plt.plot(gt_contour[:,1], gt_contour[:,0], c='green', label='GT', alpha=0.5)
+
+    if len(pred_contour) > 0:
+        pred_contour = pred_contour[0]
+        plt.plot(pred_contour[:,1], pred_contour[:,0], c='orange', label='PRED', alpha=0.5)
+    plt.axis('off')
+    plt.legend(fontsize=10)
+
+    plt.tight_layout()
+    
+    plt.suptitle(f'DICE:{dice_3d:.2f}')
+    plt.savefig(f'{save_dir}/{image_name}.png', dpi=500)
+    plt.close()
+
 def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points, anno_type, dice_3d):
     image_name = image_file.split('/')[-1].split('.')[0]
     image_data = nib.load(image_file).get_fdata()
@@ -40,9 +112,22 @@ def visualize_results(image_file, mask_gt_3d, mask_pred_3d, center_slice, points
 
     NUM_TILES = 3
 
-    save_dir = f'temp_viz/{image_name}'
+    if dice_3d <= 0.5:
+        quality_set = 'bad'
+    elif dice_3d <= 0.65:
+        quality_set = 'poor'
+    elif dice_3d < 0.8:
+        quality_set = 'good'
+    else:
+        quality_set = 'great'
+
+    save_dir = f'temp_viz/{quality_set}'
     os.makedirs(save_dir, exist_ok=True)
 
+    all_views_viz(image_data=image_data, mask_gt_3d=mask_gt_3d, mask_pred_3d=mask_pred_3d, save_dir=save_dir, dice_3d=dice_3d, image_name=image_name)
+
+    save_dir = f'temp_viz/{quality_set}/all_frames/{image_name}'
+    os.makedirs(save_dir, exist_ok=True)
     if anno_type == 'line':
         anno_x_points = [points[0][0][1], points[0][1][1]]
         anno_y_points = [points[0][0][0], points[0][1][0]]
@@ -192,7 +277,7 @@ def predict_volume(predictor, image_file, label_file, info_file, multislice=Fals
     dice_3d = dice_score(pred=mask_pred_3d.unsqueeze(0), target=mask_gt_3d.unsqueeze(0))
     dice_2d = dice_score(pred=mask_pred_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0), target=mask_gt_3d[:,:,center_slice].unsqueeze(0).unsqueeze(0))
 
-    if visualization and dice_3d < 0.6:
+    if visualization:
         visualize_results(image_file=image_file, 
                           mask_gt_3d=mask_gt_3d, 
                           mask_pred_3d=mask_pred_3d, 

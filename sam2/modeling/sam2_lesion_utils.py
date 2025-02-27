@@ -1,15 +1,37 @@
 import torch
 from scipy.spatial.distance import cdist
 import numpy as np
+import cv2
+
+def find_furthest_points_brute(
+        masks,
+        line_label = 4
+    ):
+    device = masks.device
+    mask = masks[0][0]
+    mask = mask.cpu().numpy().astype(np.uint8)
+    contours, _ = cv2.findContours(mask, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)
+    contour_points = np.array([cnt[:, 0, :] for cnt in contours]).squeeze()
+
+    print(contour_points.squeeze())
+    
 
 def find_furthest_points_brute(
         masks: torch.Tensor,
         top_percent: float=0.25,
         line_label: int=4):
+    
+    device = masks.device
+    mask = masks[0][0]
+    mask = mask.cpu().numpy().astype(np.uint8)
+    contours, _ = cv2.findContours(mask, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)
+
+
+
     assert masks.shape[0] == 1
     device = masks.device
     mask = masks[0][0]
-
+    
     indices = torch.nonzero(mask, as_tuple=False)  # Get coordinates of foreground pixels
     if len(indices) < 2:
         points = torch.tensor(np.array([[[0, 0], [0, 0]]]), dtype=torch.float32, device=device)
@@ -18,12 +40,19 @@ def find_furthest_points_brute(
         return points, labels
     
     indices_np = indices.cpu().numpy()  # Convert to NumPy for scipy compatibility
-    dist_matrix = cdist(indices_np, indices_np, metric='euclidean')  # Compute pairwise distances
 
+    contour_points = np.array(contours[0][:, 0, :]).squeeze()
+
+    dist_matrix = cdist(contour_points, contour_points, metric='euclidean')
+    #dist_matrix = cdist(indices_np, indices_np, metric='euclidean')  # Compute pairwise distances
     max_idx = np.unravel_index(np.argmax(dist_matrix), dist_matrix.shape)  # Get max dist indices
     #points = torch.stack([indices[max_idx[0]], indices[max_idx[1]]]).unsqueeze(0)
-    start_point = torch.flip(indices[max_idx[1]], dims=[0])
-    end_point = torch.flip(indices[max_idx[0]], dims=[0])
+
+    contour_points = torch.tensor(contour_points, device=device)
+    # start_point = torch.flip(contour_points[max_idx[1]], dims=[0])
+    # end_point = torch.flip(contour_points[max_idx[0]], dims=[0])
+    start_point = contour_points[max_idx[1]]
+    end_point = contour_points[max_idx[0]]
 
     points = torch.stack([start_point, end_point]).unsqueeze(0)
 

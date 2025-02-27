@@ -470,7 +470,6 @@ class Trainer:
         model: nn.Module,
         phase: str,
     ):
-
         outputs = model(batch)
         targets = batch.masks
         batch_size = len(batch.img_batch)

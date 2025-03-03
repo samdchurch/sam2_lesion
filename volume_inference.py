@@ -375,8 +375,8 @@ def run_predictor(log_dir, model_config, subset_file=None, multislice=False, ann
     plt.close()
 
 if __name__ == '__main__':
-    log_dir = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-all_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8_aug_tens'
-    size = 't'
+    log_dir = '/app/UserData/Sam/sam2_resources/logs/size-small_subset-all_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8_aug_tens'
+    size = 's'
     model_config = f'sam2.1_hiera_{size}'
     #subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABD_val.txt'
     subset_file = None

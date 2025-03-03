@@ -290,7 +290,14 @@ def predict_volume(predictor, image_file, label_file, info_file, multislice=Fals
 
     
 
-def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, anno_type=None, visualization=False):
+def run_predictor(log_dir, model_config, subset_file=None, multislice=False, anno_type=None, visualization=False):
+
+    ckpt_path = f'{log_dir}/checkpoints/checkpoint.pt'
+
+    results_dir = f'{log_dir}/results'
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+
     if torch.cuda.is_available():
         device = torch.device("cuda")
         torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
@@ -316,17 +323,24 @@ def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, a
     dice_2d_vals = []
     all_gt_num = []
     all_diff = []
+    results_2d = {}
+    results_3d = {}
     for idx, file in enumerate(files):
         image_file = os.path.join(image_path, file)
         label_file = os.path.join(label_path, file)
         info_file = os.path.join(info_path, file.replace('.nii.gz', '.json'))
-        dice_3d, dice_2d, num_gt_slices, num_diff = predict_volume(predictor=predictor, 
-                       image_file=image_file, 
-                       label_file=label_file, 
-                       info_file=info_file,
-                       multislice=multislice,
-                       anno_type=anno_type, 
-                       visualization=visualization)
+        try:
+            dice_3d, dice_2d, num_gt_slices, num_diff = predict_volume(predictor=predictor, 
+                        image_file=image_file, 
+                        label_file=label_file, 
+                        info_file=info_file,
+                        multislice=multislice,
+                        anno_type=anno_type, 
+                        visualization=visualization)
+        except Exception as e:
+            assert 1 == 2
+            print(file)
+            continue
         
         dice_3d_vals.append(dice_3d)
         dice_2d_vals.append(dice_2d)
@@ -335,6 +349,15 @@ def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, a
             all_gt_num.append(num)
         for num in num_diff:
             all_diff.append(num)
+
+        results_2d[file] = dice_2d.item()
+        results_3d[file] = dice_3d.item()
+
+        if idx % 100 == 0:
+            with open(f'{results_dir}/dice_2d.json', 'w') as f:
+                json.dump(results_2d, f, indent=2)
+            with open(f'{results_dir}/dice_3d.json', 'w') as f:
+                json.dump(results_3d, f, indent=2)
 
     print('DICE 3D:', np.mean(dice_3d_vals))
     print(np.std(dice_3d_vals))
@@ -353,13 +376,14 @@ def run_predictor(ckpt_path, model_config, subset_file=None, multislice=False, a
     plt.close()
 
 if __name__ == '__main__':
-    ckpt_path = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-ABD_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8/checkpoints/checkpoint.pt'
+    log_dir = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-all_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8_aug_tens'
     size = 't'
     model_config = f'sam2.1_hiera_{size}'
-    subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABD_val.txt'
+    #subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABD_val.txt'
+    subset_file = None
     anno_type = 'line'
     multislice = False
     GlobalHydra.instance().clear()
     initialize_config_module("sam2_resources/config", version_base="1.2")
 
-    run_predictor(ckpt_path=ckpt_path, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=True)
+    run_predictor(log_dir=log_dir, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=False)

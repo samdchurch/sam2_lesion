@@ -338,7 +338,6 @@ def run_predictor(log_dir, model_config, subset_file=None, multislice=False, ann
                         anno_type=anno_type, 
                         visualization=visualization)
         except Exception as e:
-            assert 1 == 2
             print(file)
             continue
         

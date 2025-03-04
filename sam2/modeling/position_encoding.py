@@ -89,14 +89,16 @@ class PositionEmbeddingSine(nn.Module):
     @torch.no_grad()
     def _pe(self, B, device, *cache_key):
         H, W = cache_key
-        if cache_key in self.cache:
-            return self.cache[cache_key].to(device)[None].repeat(B, 1, 1, 1)
+
+        # if cache_key in self.cache:
+        #     return self.cache[cache_key].to(device)[None].repeat(B, 1, 1, 1)
 
         y_embed = (
             torch.arange(1, H + 1, dtype=torch.float32, device=device)
             .view(1, -1, 1)
             .repeat(B, 1, W)
         )
+    
         x_embed = (
             torch.arange(1, W + 1, dtype=torch.float32, device=device)
             .view(1, 1, -1)
@@ -110,7 +112,6 @@ class PositionEmbeddingSine(nn.Module):
 
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=device)
         dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
-
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
         pos_x = torch.stack(
@@ -121,6 +122,7 @@ class PositionEmbeddingSine(nn.Module):
         ).flatten(3)
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
         self.cache[cache_key] = pos[0]
+
         return pos
 
     @torch.no_grad()

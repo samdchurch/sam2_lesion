@@ -3,17 +3,22 @@ from scipy.spatial.distance import cdist
 import numpy as np
 import cv2
 
-def find_furthest_points_brute(
-        masks,
-        line_label = 4
-    ):
-    device = masks.device
-    mask = masks[0][0]
-    mask = mask.cpu().numpy().astype(np.uint8)
-    contours, _ = cv2.findContours(mask, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)
-    contour_points = np.array([cnt[:, 0, :] for cnt in contours]).squeeze()
+def get_ortho_point(
+        prompt_points, 
+        prompt_type, 
+        center_slice, 
+        ortho_dim,
+        point_label=1):
 
-    print(contour_points.squeeze())
+    points = prompt_points[:,:,ortho_dim].squeeze()
+
+    point = int(np.round(np.mean(points.cpu().numpy())))
+    center_slice_point = int(np.round((center_slice[0] / 128) * 1024))
+    new_point = torch.tensor([[center_slice_point, point]], device=points.device, dtype=points.dtype).unsqueeze(0)
+    #new_point = torch.tensor([[point, center_slice_point]], device=points.device, dtype=points.dtype).unsqueeze(0)
+    label = torch.tensor([point_label], dtype=torch.int, device=points.device)
+    label = label.unsqueeze(0)
+    return new_point, label
     
 
 def find_furthest_points_brute(
@@ -39,8 +44,6 @@ def find_furthest_points_brute(
         labels = labels.unsqueeze(0)
         return points, labels
     
-    indices_np = indices.cpu().numpy()  # Convert to NumPy for scipy compatibility
-
     contour_points = np.array(contours[0][:, 0, :]).squeeze()
 
     dist_matrix = cdist(contour_points, contour_points, metric='euclidean')

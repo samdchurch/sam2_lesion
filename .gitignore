@@ -10,3 +10,6 @@ outputs/*
 checkpoints/*.pt
 demo/backend/checkpoints/*.pt
 sam2_logs/*
+temp_viz/*
+*.png
+

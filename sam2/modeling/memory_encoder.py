@@ -165,6 +165,8 @@ class MemoryEncoder(nn.Module):
         # sigmoid, so that less domain shift from gt masks which are bool
         if not skip_mask_sigmoid:
             masks = F.sigmoid(masks)
+
+
         masks = self.mask_downsampler(masks)
 
         ## Fuse pix_feats and downsampled masks

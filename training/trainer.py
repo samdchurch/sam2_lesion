@@ -168,7 +168,8 @@ class Trainer:
         optim_overrides: Optional[List[Dict[str, Any]]] = None,
         meters: Optional[Dict[str, Any]] = None,
         loss: Optional[Dict[str, Any]] = None,
-        lora_config = None
+        lora_config = None,
+        num_ortho_slices = 0
     ):
 
         self._setup_env_variables(env_variables)
@@ -244,6 +245,8 @@ class Trainer:
 
         self._setup_ddp_distributed_training(distributed, accelerator)
         barrier()
+
+        self.num_ortho_slices = num_ortho_slices
 
     def _setup_timers(self):
         """
@@ -476,8 +479,17 @@ class Trainer:
 
         pred_masks = [outputs[i]['pred_masks_high_res'] > 0 for i in range(len(outputs))]
         pred_masks = torch.stack(pred_masks).squeeze(1)
-        dice_3d = dice_score(pred_masks, targets)
-        dice_2d = dice_score(pred_masks[0].unsqueeze(0), targets[0].unsqueeze(0))
+
+        if self.num_ortho_slices == 2:
+            indices = [i for i in range(len(pred_masks)) if i not in [1, 2]]
+            indices_tensor = torch.tensor(indices, dtype=torch.long, device=pred_masks.device)
+            pred_masks_dice = torch.index_select(pred_masks, 0, indices_tensor)
+            targets_dice = torch.index_select(targets, 0, indices_tensor)
+            dice_3d = dice_score(pred_masks_dice, targets_dice)
+            dice_2d = dice_score(pred_masks_dice[0].unsqueeze(0), targets_dice[0].unsqueeze(0))
+        else:
+            dice_3d = dice_score(pred_masks, targets)
+            dice_2d = dice_score(pred_masks[0].unsqueeze(0), targets[0].unsqueeze(0))
 
         key = batch.dict_key  # key for dataset
         loss = self.loss[key](outputs, targets)

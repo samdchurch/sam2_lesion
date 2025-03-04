@@ -32,6 +32,7 @@ class BatchedVideoMetaData:
     frame_orig_size: torch.LongTensor
 
 
+
 @tensorclass
 class BatchedVideoDatapoint:
     """
@@ -87,6 +88,10 @@ class BatchedVideoDatapoint:
         return self.img_batch.transpose(0, 1).flatten(0, 1)
 
 
+@tensorclass
+class BatchedNiftiDatapoint(BatchedVideoDatapoint):
+    center_slices: List[int]
+
 @dataclass
 class Object:
     # Id of the object in the media
@@ -110,6 +115,10 @@ class VideoDatapoint:
     video_id: int
     size: Tuple[int, int]
 
+@dataclass
+class NiftiDatapoint(VideoDatapoint):
+    center_slice: int
+
 
 def collate_fn(
     batch: List[VideoDatapoint],
@@ -121,8 +130,10 @@ def collate_fn(
         dict_key (str): A string key used to identify the batch.
     """
     img_batch = []
+    center_slices = []
     for video in batch:
         img_batch += [torch.stack([frame.data for frame in video.frames], dim=0)]
+        center_slices.append(video.center_slice)
 
     img_batch = torch.stack(img_batch, dim=0).permute((1, 0, 2, 3, 4))
     T = img_batch.shape[0]
@@ -166,7 +177,7 @@ def collate_fn(
     frame_orig_size = torch.stack(
         [torch.stack(id, dim=0) for id in step_t_frame_orig_size], dim=0
     )
-    return BatchedVideoDatapoint(
+    return BatchedNiftiDatapoint(
         img_batch=img_batch,
         obj_to_frame_idx=obj_to_frame_idx,
         masks=masks,
@@ -174,6 +185,7 @@ def collate_fn(
             unique_objects_identifier=objects_identifier,
             frame_orig_size=frame_orig_size,
         ),
+        center_slices=center_slices,
         dict_key=dict_key,
         batch_size=[T],
     )

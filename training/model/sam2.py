@@ -112,6 +112,7 @@ class SAM2Train(SAM2Base):
             # defer image feature computation on a frame until it's being tracked
             backbone_out = {"backbone_fpn": None, "vision_pos_enc": None}
         backbone_out = self.prepare_prompt_inputs(backbone_out, input)
+
         previous_stages_out = self.forward_tracking(backbone_out, input)
 
         return previous_stages_out

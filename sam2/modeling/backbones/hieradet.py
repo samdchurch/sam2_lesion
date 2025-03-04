@@ -274,6 +274,7 @@ class Hiera(nn.Module):
         h, w = hw
         window_embed = self.pos_embed_window
         pos_embed = F.interpolate(self.pos_embed, size=(h, w), mode="bicubic")
+
         pos_embed = pos_embed + window_embed.tile(
             [x // y for x, y in zip(pos_embed.shape, window_embed.shape)]
         )
@@ -282,9 +283,9 @@ class Hiera(nn.Module):
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         x = self.patch_embed(x)
-        # x: (B, H, W, C)
+        # # x: (B, H, W, C)
 
-        # Add pos embed
+        # # Add pos embed
         x = x + self._get_pos_embed(x.shape[1:3])
 
         outputs = []

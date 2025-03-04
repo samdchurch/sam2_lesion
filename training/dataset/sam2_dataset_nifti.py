@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import nibabel as nib
 import random
+import cv2
 
 from typing import Callable, Iterable, List, Optional, Sequence
 
@@ -12,7 +13,9 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision.datasets.vision import VisionDataset
 from torchvision.transforms import ToPILImage
 
-from training.utils.data_utils import VideoDatapoint, Frame, Object
+from training.utils.data_utils import VideoDatapoint, Frame, Object, NiftiDatapoint
+
+from collections import Counter
 
 class NiftiDataset(VisionDataset):
     def __init__(
@@ -25,7 +28,8 @@ class NiftiDataset(VisionDataset):
         max_num_frames,
         file_list = None,
         multiplier = 1,
-        multislice = True
+        multislice = True,
+        num_ortho_slices = 0
         ):
         self.image_folder = image_folder
         self.gt_folder = gt_folder
@@ -34,6 +38,7 @@ class NiftiDataset(VisionDataset):
         self.training = training
         self.max_num_frames = max_num_frames
         self.multislice = multislice
+        self.num_ortho_slices = num_ortho_slices
         if file_list is not None:
             with open(file_list) as f:
                 self.image_files = f.readlines()
@@ -82,11 +87,57 @@ class NiftiDataset(VisionDataset):
         if np.abs(center_slice - end_slice) <= 2:
             return self._get_datapoint(np.random.randint(0, len(self)))
         
-        image_slices = image_data.dataobj[:,:,center_slice_image:end_slice_image:direction]
-        label_slices = label_data.dataobj[:,:,center_slice:end_slice:direction]
 
-        image_slices = torch.tensor(image_slices.copy(), device=torch.device("cuda"))
-        label_slices = torch.tensor(label_slices.copy(), device=torch.device("cuda"))
+        if self.num_ortho_slices == 0:
+            image_slices = image_data.dataobj[:,:,center_slice_image:end_slice_image:direction]
+            label_slices = label_data.dataobj[:,:,center_slice:end_slice:direction]
+            image_slices = torch.tensor(image_slices.copy(), device=torch.device("cuda"))
+            label_slices = torch.tensor(label_slices.copy(), device=torch.device("cuda"))
+        if self.num_ortho_slices == 2:
+            axial_slice = image_data.dataobj[:,:,center_slice_image].squeeze()
+            axial_label = label_data.dataobj[:,:,center_slice].squeeze()
+            top_num = 3
+            loc = np.where(axial_label)
+
+            counter = Counter(loc[0])
+            first_dim_loc = counter.most_common(top_num)
+            first_dim = np.random.choice([idx for idx, count in first_dim_loc])
+
+            counter = Counter(loc[1])
+            second_dim_loc = counter.most_common(top_num)
+            second_dim = np.random.choice([idx for idx, count in second_dim_loc])
+
+            sag_slice = image_data.dataobj[first_dim,:,:].squeeze()
+            sag_label = label_data.dataobj[first_dim,:,:].squeeze()
+            sag_slice = cv2.resize(sag_slice, axial_slice.shape, interpolation=cv2.INTER_LINEAR)
+            sag_label = cv2.resize(sag_label, axial_label.shape, interpolation=cv2.INTER_LINEAR)
+
+            cor_slice = image_data.dataobj[:,second_dim,:].squeeze()
+            cor_label = label_data.dataobj[:,second_dim,:].squeeze()
+            cor_slice = cv2.resize(cor_slice, axial_slice.shape, interpolation=cv2.INTER_LINEAR)
+            cor_label = cv2.resize(cor_label, axial_label.shape, interpolation=cv2.INTER_LINEAR)
+
+            slice_list = []
+            label_list = []
+            slice_list.append(torch.tensor(axial_slice))
+            slice_list.append(torch.tensor(sag_slice))
+            slice_list.append(torch.tensor(cor_slice))
+            label_list.append(torch.tensor(axial_label))
+            label_list.append(torch.tensor(sag_label))
+            label_list.append(torch.tensor(cor_label))
+
+            for j in range(center_slice_image + 1, end_slice_image, direction):
+                slice_list.append(torch.tensor(image_data.dataobj[:,:,j]).squeeze())
+            for j in range(center_slice + 1, end_slice, direction):
+                label_list.append(torch.tensor(label_data.dataobj[:,:,j]).squeeze())
+
+            slice_list = torch.stack(slice_list)
+            label_list = torch.stack(label_list)
+
+            image_slices = slice_list.permute(1, 2, 0).unsqueeze(-1)
+            label_slices = label_list.permute(1, 2, 0).unsqueeze(-1)
+            image_slices.to(torch.device('cuda'))
+            label_slices.to(torch.device('cuda'))
 
         image_slices = image_slices - torch.min(image_slices)
         image_slices = image_slices / torch.max(image_slices)
@@ -113,10 +164,9 @@ class NiftiDataset(VisionDataset):
 
         h = image_slices.shape[0]
         w = image_slices.shape[1]
-        datapoint = VideoDatapoint(frames=frames, video_id=idx, size=(h, w))
+        datapoint = NiftiDatapoint(frames=frames, video_id=idx, size=(h, w), center_slice=center_slice)
         for transform in self._transforms:
-            datapoint = transform(datapoint)#, epoch=self.curr_epoch)
-
+            datapoint = transform(datapoint)
 
         return datapoint
 

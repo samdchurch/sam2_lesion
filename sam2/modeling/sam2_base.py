@@ -93,6 +93,7 @@ class SAM2Base(torch.nn.Module):
         # extra arguments used to construct the SAM mask decoder; if not None, it should be a dict of kwargs to be passed into `MaskDecoder` class.
         sam_mask_decoder_extra_args=None,
         compile_image_encoder: bool = False,
+        num_ortho_maskmem = 0
     ):
         super().__init__()
 
@@ -134,6 +135,12 @@ class SAM2Base(torch.nn.Module):
             torch.zeros(num_maskmem, 1, 1, self.mem_dim)
         )
         trunc_normal_(self.maskmem_tpos_enc, std=0.02)
+
+        self.num_ortho_maskmem = num_ortho_maskmem
+        self.ortho_slices_tpos = torch.nn.Parameter(torch.zeros(num_ortho_maskmem, 1, 1, self.mem_dim))
+        trunc_normal_(self.ortho_slices_tpos, std=0.02)
+        
+
         # a single token to indicate no memory embedding from previous frames
         self.no_mem_embed = torch.nn.Parameter(torch.zeros(1, 1, self.hidden_dim))
         self.no_mem_pos_enc = torch.nn.Parameter(torch.zeros(1, 1, self.hidden_dim))
@@ -530,7 +537,10 @@ class SAM2Base(torch.nn.Module):
             selected_cond_outputs, unselected_cond_outputs = select_closest_cond_frames(
                 frame_idx, cond_outputs, self.max_cond_frames_in_attn
             )
-            t_pos_and_prevs = [(0, out) for out in selected_cond_outputs.values()]
+
+            #t_pos_and_prevs = [(0, out) for out in selected_cond_outputs.values()]
+            t_pos_and_prevs = [(-1*key, out) for key, out in selected_cond_outputs.items()]
+
             # Add last (self.num_maskmem - 1) frames before current frame for non-conditioning memory
             # the earliest one has t_pos=1 and the latest one has t_pos=self.num_maskmem-1
             # We also allow taking the memory frame non-consecutively (with stride>1), in which case
@@ -578,9 +588,12 @@ class SAM2Base(torch.nn.Module):
                 maskmem_enc = prev["maskmem_pos_enc"][-1].to(device)
                 maskmem_enc = maskmem_enc.flatten(2).permute(2, 0, 1)
                 # Temporal positional encoding
-                maskmem_enc = (
-                    maskmem_enc + self.maskmem_tpos_enc[self.num_maskmem - t_pos - 1]
-                )
+                if t_pos >= 0:
+                    maskmem_enc = (
+                        maskmem_enc + self.maskmem_tpos_enc[self.num_maskmem - t_pos - 1]
+                    )
+                else:
+                    maskmem_enc = (maskmem_enc + self.ortho_slices_tpos[-1*t_pos - 1])
                 to_cat_memory_pos_embed.append(maskmem_enc)
 
             # Construct the list of past object pointers

@@ -26,14 +26,19 @@ class ImageEncoder(nn.Module):
             self.trunk.channel_list == self.neck.backbone_channel_list
         ), f"Channel dims of trunk and neck do not match. Trunk: {self.trunk.channel_list}, neck: {self.neck.backbone_channel_list}"
 
-    def forward(self, sample: torch.Tensor):
+    def forward(self, 
+                sample: torch.Tensor, 
+                fixed_dims: List[int], 
+                fixed_slices: List[int]):
         # Forward through backbone
-        features, pos = self.neck(self.trunk(sample))
+        features, pos = self.neck(self.trunk(sample), fixed_dims, fixed_slices)
+
         if self.scalp > 0:
             # Discard the lowest resolution features
             features, pos = features[: -self.scalp], pos[: -self.scalp]
 
         src = features[-1]
+
         output = {
             "vision_features": src,
             "vision_pos_enc": pos,
@@ -99,7 +104,10 @@ class FpnNeck(nn.Module):
             fpn_top_down_levels = range(len(self.convs))
         self.fpn_top_down_levels = list(fpn_top_down_levels)
 
-    def forward(self, xs: List[torch.Tensor]):
+    def forward(self,
+                xs: List[torch.Tensor],
+                fixed_dims: List[int],
+                fixed_slices: List[int]):
 
         out = [None] * len(self.convs)
         pos = [None] * len(self.convs)
@@ -129,6 +137,5 @@ class FpnNeck(nn.Module):
                 prev_features = lateral_features
             x_out = prev_features
             out[i] = x_out
-            pos[i] = self.position_encoding(x_out).to(x_out.dtype)
-
+            pos[i] = self.position_encoding(x_out, fixed_dims[0], fixed_slices[0]).to(x_out.dtype)
         return out, pos

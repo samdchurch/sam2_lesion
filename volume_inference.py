@@ -375,7 +375,7 @@ def run_predictor(log_dir, model_config, subset_file=None, multislice=False, ann
     plt.close()
 
 if __name__ == '__main__':
-    log_dir = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-all_ep-40_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_cj-False_gb2_multi-False_lora-False-8_aug_tens'
+    log_dir = '/app/UserData/Sam/sam2_resources/logs/size-tiny_subset-all_frames-12_baselr-5e-06_visionlr-3e-06_anno-line_affine-50-20_multi-False_lora-False-8_num-ortho-0'
     size = 't'
     model_config = f'sam2.1_hiera_{size}'
     #subset_file = '/app/UserData/Sam/sam2_resources/subsets/ABD_val.txt'
@@ -385,4 +385,4 @@ if __name__ == '__main__':
     GlobalHydra.instance().clear()
     initialize_config_module("sam2_resources/config", version_base="1.2")
 
-    run_predictor(log_dir=log_dir, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=False)
+    run_predictor(log_dir=log_dir, model_config=model_config, subset_file=subset_file, multislice=multislice, anno_type=anno_type, visualization=True)

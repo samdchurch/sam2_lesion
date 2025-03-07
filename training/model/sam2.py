@@ -107,7 +107,7 @@ class SAM2Train(SAM2Base):
     def forward(self, input: BatchedVideoDatapoint):
         if self.training or not self.forward_backbone_per_frame_for_eval:
             # precompute image features on all frames before tracking
-            backbone_out = self.forward_image(input.flat_img_batch)
+            backbone_out = self.forward_image(input.flat_img_batch, input.fixed_slices, input.fixed_dims)
         else:
             # defer image feature computation on a frame until it's being tracked
             backbone_out = {"backbone_fpn": None, "vision_pos_enc": None}
@@ -117,7 +117,7 @@ class SAM2Train(SAM2Base):
 
         return previous_stages_out
 
-    def _prepare_backbone_features_per_frame(self, img_batch, img_ids):
+    def _prepare_backbone_features_per_frame(self, img_batch, img_ids, fixed_slices, fixed_dims):
         """Compute the image backbone features on the fly for the given img_ids."""
         # Only forward backbone on unique image ids to avoid repetitive computation
         # (if `img_ids` has only one element, it's already unique so we skip this step).
@@ -128,7 +128,7 @@ class SAM2Train(SAM2Base):
 
         # Compute the image features on those unique image ids
         image = img_batch[unique_img_ids]
-        backbone_out = self.forward_image(image)
+        backbone_out = self.forward_image(image, fixed_dims=fixed_dims, fixed_slices=fixed_slices)
         (
             _,
             vision_feats,
@@ -310,7 +310,7 @@ class SAM2Train(SAM2Base):
                     current_vision_pos_embeds,
                     feat_sizes,
                 ) = self._prepare_backbone_features_per_frame(
-                    input.flat_img_batch, img_ids
+                    input.flat_img_batch, img_ids, fixed_slices=input.fixed_slices, fixed_dims=input.fixed_dims
                 )
 
             # Get output masks based on this frame's prompts and previous memory
@@ -326,6 +326,8 @@ class SAM2Train(SAM2Base):
                 frames_to_add_correction_pt=frames_to_add_correction_pt,
                 output_dict=output_dict,
                 num_frames=num_frames,
+                fixed_slices=[input.fixed_slices[0][stage_id]],
+                fixed_dims=[input.fixed_dims[0][stage_id]]
             )
             # Append the output, depending on whether it's a conditioning frame
             add_output_as_cond_frame = stage_id in init_cond_frames or (
@@ -367,6 +369,8 @@ class SAM2Train(SAM2Base):
         prev_sam_mask_logits=None,  # The previously predicted SAM mask logits.
         frames_to_add_correction_pt=None,
         gt_masks=None,
+        fixed_dims=None,
+        fixed_slices=None
     ):
         if frames_to_add_correction_pt is None:
             frames_to_add_correction_pt = []
@@ -393,7 +397,6 @@ class SAM2Train(SAM2Base):
             obj_ptr,
             object_score_logits,
         ) = sam_outputs
-
         current_out["multistep_pred_masks"] = low_res_masks
         current_out["multistep_pred_masks_high_res"] = high_res_masks
         current_out["multistep_pred_multimasks"] = [low_res_multimasks]
@@ -443,6 +446,8 @@ class SAM2Train(SAM2Base):
             high_res_masks,
             object_score_logits,
             current_out,
+            fixed_dims=fixed_dims,
+            fixed_slices=fixed_slices
         )
         return current_out
 

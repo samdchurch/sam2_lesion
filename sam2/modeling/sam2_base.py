@@ -14,7 +14,7 @@ from sam2.modeling.sam.mask_decoder import MaskDecoder
 from sam2.modeling.sam.prompt_encoder import PromptEncoder
 from sam2.modeling.sam.transformer import TwoWayTransformer
 from sam2.modeling.sam2_utils import get_1d_sine_pe, MLP, select_closest_cond_frames
-
+from typing import List
 # a large negative value as a placeholder score for missing objects
 NO_OBJ_SCORE = -1024.0
 
@@ -471,9 +471,12 @@ class SAM2Base(torch.nn.Module):
             object_score_logits,
         )
 
-    def forward_image(self, img_batch: torch.Tensor):
+    def forward_image(self, 
+                      img_batch: torch.Tensor,
+                      fixed_slices: List[int],
+                      fixed_dims: List[int]):
         """Get the image feature on the input batch."""
-        backbone_out = self.image_encoder(img_batch)
+        backbone_out = self.image_encoder(img_batch, fixed_dims, fixed_slices)
         if self.use_high_res_features_in_sam:
             # precompute projected level 0 and level 1 features in SAM decoder
             # to avoid running it again on every SAM click
@@ -586,14 +589,15 @@ class SAM2Base(torch.nn.Module):
                 to_cat_memory.append(feats.flatten(2).permute(2, 0, 1))
                 # Spatial positional encoding (it might have been offloaded to CPU in eval)
                 maskmem_enc = prev["maskmem_pos_enc"][-1].to(device)
+
                 maskmem_enc = maskmem_enc.flatten(2).permute(2, 0, 1)
                 # Temporal positional encoding
-                if t_pos >= 0:
-                    maskmem_enc = (
-                        maskmem_enc + self.maskmem_tpos_enc[self.num_maskmem - t_pos - 1]
-                    )
-                else:
-                    maskmem_enc = (maskmem_enc + self.ortho_slices_tpos[-1*t_pos - 1])
+                # if t_pos >= 0:
+                #     maskmem_enc = (
+                #         maskmem_enc + self.maskmem_tpos_enc[self.num_maskmem - t_pos - 1]
+                #     )
+                # else:
+                #     maskmem_enc = (maskmem_enc + self.ortho_slices_tpos[-1*t_pos - 1])
                 to_cat_memory_pos_embed.append(maskmem_enc)
 
             # Construct the list of past object pointers
@@ -609,6 +613,10 @@ class SAM2Base(torch.nn.Module):
                     }
                 else:
                     ptr_cond_outputs = selected_cond_outputs
+
+                # only select first slice, not orthogonal slice object pointers
+                ptr_cond_outputs = {t: out for t, out in ptr_cond_outputs.items() if t == 0}
+
                 pos_and_ptrs = [
                     # Temporal pos encoding contains how far away each pointer is from current frame
                     (
@@ -695,6 +703,8 @@ class SAM2Base(torch.nn.Module):
         pred_masks_high_res,
         object_score_logits,
         is_mask_from_pts,
+        fixed_dims,
+        fixed_slices
     ):
         """Encode the current image and its prediction into a memory feature."""
         B = current_vision_feats[-1].size(1)  # batch size on this frame
@@ -722,7 +732,7 @@ class SAM2Base(torch.nn.Module):
         if self.sigmoid_bias_for_mem_enc != 0.0:
             mask_for_mem = mask_for_mem + self.sigmoid_bias_for_mem_enc
         maskmem_out = self.memory_encoder(
-            pix_feat, mask_for_mem, skip_mask_sigmoid=True  # sigmoid already applied
+            pix_feat, mask_for_mem, skip_mask_sigmoid=True, fixed_dim=fixed_dims, fixed_slice=fixed_slices
         )
         maskmem_features = maskmem_out["vision_features"]
         maskmem_pos_enc = maskmem_out["vision_pos_enc"]
@@ -808,6 +818,8 @@ class SAM2Base(torch.nn.Module):
         high_res_masks,
         object_score_logits,
         current_out,
+        fixed_dims,
+        fixed_slices
     ):
         if run_mem_encoder and self.num_maskmem > 0:
             high_res_masks_for_mem_enc = high_res_masks
@@ -817,6 +829,8 @@ class SAM2Base(torch.nn.Module):
                 pred_masks_high_res=high_res_masks_for_mem_enc,
                 object_score_logits=object_score_logits,
                 is_mask_from_pts=(point_inputs is not None),
+                fixed_dims=fixed_dims,
+                fixed_slices=fixed_slices
             )
             current_out["maskmem_features"] = maskmem_features
             current_out["maskmem_pos_enc"] = maskmem_pos_enc
@@ -844,6 +858,8 @@ class SAM2Base(torch.nn.Module):
         run_mem_encoder=True,
         # The previously predicted SAM mask logits (which can be fed together with new clicks in demo).
         prev_sam_mask_logits=None,
+        fixed_dims=None,
+        fixed_slices=None
     ):
         current_out, sam_outputs, _, _ = self._track_step(
             frame_idx,
@@ -887,6 +903,8 @@ class SAM2Base(torch.nn.Module):
             high_res_masks,
             object_score_logits,
             current_out,
+            fixed_dims=fixed_dims,
+            fixed_slices=fixed_slices
         )
 
         return current_out

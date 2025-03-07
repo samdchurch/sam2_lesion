@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Tuple
+from typing import Tuple, List
 
 import torch
 import torch.nn as nn
@@ -159,7 +159,7 @@ class MemoryEncoder(nn.Module):
         self,
         pix_feat: torch.Tensor,
         masks: torch.Tensor,
-        skip_mask_sigmoid: bool = False,
+        skip_mask_sigmoid: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         ## Process masks
         # sigmoid, so that less domain shift from gt masks which are bool
@@ -180,4 +180,33 @@ class MemoryEncoder(nn.Module):
 
         pos = self.position_encoding(x).to(x.dtype)
 
+        return {"vision_features": x, "vision_pos_enc": [pos]}
+    
+    def forward(
+        self,
+        pix_feat: torch.Tensor,
+        masks: torch.Tensor,
+        fixed_dim: List[int],
+        fixed_slice: List[int],
+        skip_mask_sigmoid: bool = False,
+
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        ## Process masks
+        # sigmoid, so that less domain shift from gt masks which are bool
+        if not skip_mask_sigmoid:
+            masks = F.sigmoid(masks)
+
+
+        masks = self.mask_downsampler(masks)
+
+        ## Fuse pix_feats and downsampled masks
+        # in case the visual features are on CPU, cast them to CUDA
+        pix_feat = pix_feat.to(masks.device)
+
+        x = self.pix_feat_proj(pix_feat)
+        x = x + masks
+        x = self.fuser(x)
+        x = self.out_proj(x)
+        pos = self.position_encoding(x, fixed_dim, fixed_slice).to(x.dtype)
         return {"vision_features": x, "vision_pos_enc": [pos]}

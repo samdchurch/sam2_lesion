@@ -87,12 +87,16 @@ class NiftiDataset(VisionDataset):
         if np.abs(center_slice - end_slice) <= 2:
             return self._get_datapoint(np.random.randint(0, len(self)))
         
-
         if self.num_ortho_slices == 0:
             image_slices = image_data.dataobj[:,:,center_slice_image:end_slice_image:direction]
             label_slices = label_data.dataobj[:,:,center_slice:end_slice:direction]
             image_slices = torch.tensor(image_slices.copy(), device=torch.device("cuda"))
             label_slices = torch.tensor(label_slices.copy(), device=torch.device("cuda"))
+            fixed_slices = []
+            fixed_dims = []
+            for j in range(center_slice, end_slice, direction):
+                fixed_dims.append(2)
+                fixed_slices.append(j)
         if self.num_ortho_slices == 2:
             axial_slice = image_data.dataobj[:,:,center_slice_image].squeeze()
             axial_label = label_data.dataobj[:,:,center_slice].squeeze()
@@ -119,6 +123,17 @@ class NiftiDataset(VisionDataset):
 
             slice_list = []
             label_list = []
+            fixed_slices = []
+            fixed_dims = []
+
+            fixed_dims.append(2)
+            fixed_dims.append(0)
+            fixed_dims.append(1)
+
+            fixed_slices.append(center_slice)
+            fixed_slices.append(first_dim)
+            fixed_slices.append(second_dim)
+
             slice_list.append(torch.tensor(axial_slice))
             slice_list.append(torch.tensor(sag_slice))
             slice_list.append(torch.tensor(cor_slice))
@@ -126,10 +141,17 @@ class NiftiDataset(VisionDataset):
             label_list.append(torch.tensor(sag_label))
             label_list.append(torch.tensor(cor_label))
 
-            for j in range(center_slice_image + 1, end_slice_image, direction):
+            if direction == -1:
+                next_slice = center_slice_image - 1
+            else:
+                next_slice = center_slice_image + 1
+            for j in range(next_slice, end_slice_image, direction):
                 slice_list.append(torch.tensor(image_data.dataobj[:,:,j]).squeeze())
-            for j in range(center_slice + 1, end_slice, direction):
+            for j in range(next_slice, end_slice, direction):
                 label_list.append(torch.tensor(label_data.dataobj[:,:,j]).squeeze())
+                fixed_slices.append(j)
+                fixed_dims.append(2)
+
 
             slice_list = torch.stack(slice_list)
             label_list = torch.stack(label_list)
@@ -164,7 +186,7 @@ class NiftiDataset(VisionDataset):
 
         h = image_slices.shape[0]
         w = image_slices.shape[1]
-        datapoint = NiftiDatapoint(frames=frames, video_id=idx, size=(h, w), center_slice=center_slice)
+        datapoint = NiftiDatapoint(frames=frames, video_id=idx, size=(h, w), fixed_slices=fixed_slices, fixed_dims=fixed_dims)
         for transform in self._transforms:
             datapoint = transform(datapoint)
 

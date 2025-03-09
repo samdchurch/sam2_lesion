@@ -143,7 +143,7 @@ def make_log_dir_name(cfg):
     lora_rank = cfg.lora.rank
     num_ortho = cfg.scratch.num_ortho_slices
     num_maskmem = cfg.trainer.model.num_maskmem
-    log_dir_name = f'size-{model_type}_subset-{subset}_frames-{num_frames}_baselr-{base_lr}_visionlr-{vision_lr}_anno-{anno_type}_affine-{degrees}-{shear}_multi-{multislice}_lora-{lora}-{lora_rank}_num-ortho-{num_ortho}_no_temp'
+    log_dir_name = f'size-{model_type}_subset-{subset}_frames-{num_frames}_baselr-{base_lr}_visionlr-{vision_lr}_anno-{anno_type}_affine-{degrees}-{shear}_multi-{multislice}_lora-{lora}-{lora_rank}_num-ortho-{num_ortho}_no_temp_aug'
 
     return log_dir_name
 

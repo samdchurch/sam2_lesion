@@ -102,12 +102,12 @@ class PositionEmbeddingSine3D(nn.Module):
             fixed_slice = fixed_slices[i]
 
             if fixed_dim == 0:
-                z_embed = (
+                x_embed = (
                     torch.arange(1, H + 1, dtype=torch.float32, device=device)
                     .view(1, -1, 1)
                     .repeat(1, 1, W)
                 )
-                x_embed = (
+                z_embed = (
                     torch.arange(1, W + 1, dtype=torch.float32, device=device)
                     .view(1, 1, -1)
                     .repeat(1, H, 1)

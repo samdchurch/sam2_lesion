@@ -11,6 +11,7 @@ class RandomGaussianNoise:
     def __call__(self, datapoint, **kwargs):
         sigma = np.random.uniform(self.sigma)
         for i in range(len(datapoint.frames)):
+            data_type = datapoint.frames[i].data.dtype
             np_image = np.array(datapoint.frames[i].data)
 
             noise = np.random.normal(self.mean, sigma, np_image.shape)
@@ -21,7 +22,7 @@ class RandomGaussianNoise:
             if self.clip:
                 np_image = np.clip(np_image, a_min=0, a_max=1)
 
-            datapoint.frames[i].data = torch.tensor(np.array(np_image))
+            datapoint.frames[i].data = torch.tensor(np.array(np_image), dtype=data_type)
 
 
         return datapoint
